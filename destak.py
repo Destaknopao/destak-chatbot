@@ -1,32 +1,12 @@
-# -*- coding: utf-8 -*-
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 import sqlite3
 from datetime import datetime
+import json
 
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return '🚀 Servidor do Destakinho está rodando!'
-
-# ✅ VERIFICAÇÃO DO WEBHOOK (GET) E RECEBIMENTO DE MENSAGENS (POST)
-@app.route("/webhook", methods=["GET", "POST"])
-def webhook():
-    if request.method == "GET":
-        verify_token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
-        if verify_token == "destaktoken":
-            return challenge, 200
-        return "Token inválido", 403
-
-    # POST: Recebendo mensagens do Meta (apenas imprime no console)
-    data = request.get_json()
-    print("📩 Mensagem recebida do Meta:")
-    print(data)
-    return "ok", 200
-
-# 🔁 Função para registrar mensagens no banco de dados
+# Função para registrar mensagens recebidas
 def registrar_atendimento(numero, mensagem):
     conn = sqlite3.connect('destak.db')
     c = conn.cursor()
@@ -43,7 +23,34 @@ def registrar_atendimento(numero, mensagem):
     conn.commit()
     conn.close()
 
-# ✅ ROTA PARA MENSAGENS DO WHATSAPP (caso esteja usando Twilio)
+# Rota padrão (opcional)
+@app.route("/", methods=["GET"])
+def home():
+    return "Destak no Pão - Webhook ativo!"
+
+# Rota para verificação do webhook (Meta)
+@app.route("/webhook", methods=["GET", "POST"])
+def webhook():
+    if request.method == "GET":
+        verify_token = "destaktoken"
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
+
+        if mode == "subscribe" and token == verify_token:
+            return challenge, 200
+        else:
+            return "Erro na verificação", 403
+
+    elif request.method == "POST":
+        payload = request.get_json()
+        print("📩 Mensagem recebida do Meta:")
+        print(json.dumps(payload, indent=2))
+
+        # Aqui você pode implementar o tratamento da mensagem se quiser
+        return "Evento recebido", 200
+
+# Rota para responder mensagens do Twilio (caso ainda esteja usando)
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     msg_usuario = request.values.get('Body', '').strip().lower()
@@ -62,33 +69,20 @@ def whatsapp():
             "3️⃣ Ver exemplos\n"
             "4️⃣ Falar com um atendente"
         )
-
     elif msg_usuario == '1':
-        msg.body(
-            "Ótimo! Aqui está nossa proposta em PDF:\n"
-            "📄 Acesse: https://destaknopao.com.br/proposta/Proposta_Destak_no_Pao.pdf\n\n"
-            "Depois de ler, envie:\n- Nome da empresa\n- Bairro/cidade\n- Telefone\n\n"
-            "Nosso time vai te chamar! 🚀"
-        )
-
+        msg.body("📢 Ótimo! Para anunciar, envie agora o nome do seu comércio e a região que deseja alcançar.")
     elif msg_usuario == '2':
-        msg.body("📢 A publicidade em sacos de pão funciona assim:\n"
-                 "- Sua marca é impressa nos sacos\n"
-                 "- Os sacos são entregues gratuitamente em padarias\n"
-                 "- Sua marca chega até a mesa do consumidor!")
-
+        msg.body("📦 Funciona assim: colocamos sua propaganda em sacos de pão distribuídos em padarias parceiras. Simples, barato e direto ao consumidor!")
     elif msg_usuario == '3':
-        msg.media("https://exemplo.com/imagem_publicidade_destak.jpg")  # Substituir pelo link real
-        msg.body("Aqui está um exemplo real do nosso trabalho!")
-
+        msg.body("🖼️ Veja exemplos reais de anúncios: https://instagram.com/destaknopao")
     elif msg_usuario == '4':
-        msg.body("Um atendente da Destak no Pão vai te chamar em instantes. Por favor, envie sua dúvida.")
-
+        msg.body("💬 Um atendente entrará em contato com você em breve. Obrigado!")
     else:
-        msg.body("❓ Não entendi... Digite:\n1, 2, 3 ou 4 para continuar.")
+        msg.body("❓ Não entendi. Envie *1*, *2*, *3* ou *4* para escolher uma opção.")
 
     return str(resposta)
 
+# 🔧 Configuração para Render funcionar
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", port=10000)
 
