@@ -3,6 +3,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 import sqlite3
 from datetime import datetime
 import json
+import os
 
 app = Flask(__name__)
 
@@ -19,16 +20,16 @@ def registrar_atendimento(numero, mensagem):
         )
     ''')
     c.execute('INSERT INTO atendimentos (numero, mensagem, horario) VALUES (?, ?, ?)',
-              (numero, mensagem, datetime.now()))
+              (numero, mensagem, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
 
-# Rota padrão (opcional)
+# Rota padrão
 @app.route("/", methods=["GET"])
 def home():
-    return "Destak no Pão - Webhook ativo!"
+    return "✅ Destak no Pão - Webhook ativo!"
 
-# Rota para verificação do webhook (Meta)
+# Rota para verificação e recepção de mensagens do Meta
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
     if request.method == "GET":
@@ -38,8 +39,10 @@ def webhook():
         challenge = request.args.get("hub.challenge")
 
         if mode == "subscribe" and token == verify_token:
+            print("🔐 Webhook verificado com sucesso!")
             return challenge, 200
         else:
+            print("❌ Falha na verificação do webhook.")
             return "Erro na verificação", 403
 
     elif request.method == "POST":
@@ -47,10 +50,10 @@ def webhook():
         print("📩 Mensagem recebida do Meta:")
         print(json.dumps(payload, indent=2))
 
-        # Aqui você pode implementar o tratamento da mensagem se quiser
+        # Aqui você pode implementar o tratamento das mensagens recebidas do Meta se desejar
         return "Evento recebido", 200
 
-# Rota para responder mensagens do Twilio (caso ainda esteja usando)
+# Rota para responder mensagens do Twilio (caso esteja usando)
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     msg_usuario = request.values.get('Body', '').strip().lower()
@@ -82,7 +85,9 @@ def whatsapp():
 
     return str(resposta)
 
-# 🔧 Configuração para Render funcionar
+# 🔧 Configuração para rodar no Render
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    import os
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
