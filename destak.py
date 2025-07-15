@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 import sqlite3
@@ -29,11 +30,12 @@ def registrar_atendimento(numero, mensagem):
 def home():
     return "✅ Destak no Pão - Webhook ativo!"
 
-# Rota para verificação e recepção de mensagens do Meta
+# Rota para verificação e recepção de mensagens do WhatsApp Cloud API (Meta)
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
+    verify_token = os.environ.get("VERIFY_TOKEN", "destaktoken")
+
     if request.method == "GET":
-        verify_token = "destaktoken"
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
@@ -50,10 +52,22 @@ def webhook():
         print("📩 Mensagem recebida do Meta:")
         print(json.dumps(payload, indent=2))
 
-        # Aqui você pode implementar o tratamento das mensagens recebidas do Meta se desejar
+        try:
+            entry = payload['entry'][0]
+            changes = entry['changes'][0]['value']
+            mensagens = changes.get('messages')
+
+            if mensagens:
+                numero = mensagens[0]['from']
+                texto = mensagens[0]['text']['body']
+                registrar_atendimento(numero, texto)
+
+        except Exception as e:
+            print(f"❌ Erro ao registrar atendimento: {e}")
+
         return "Evento recebido", 200
 
-# Rota para responder mensagens do Twilio (caso esteja usando)
+# Rota para responder mensagens do Twilio
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     msg_usuario = request.values.get('Body', '').strip().lower()
@@ -85,9 +99,8 @@ def whatsapp():
 
     return str(resposta)
 
-# 🔧 Configuração para rodar no Render
+# 🔧 Executa o app no Render
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
